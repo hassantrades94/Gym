@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq("phone_number", normalizedPhone)
-      .single()
+      .maybeSingle()
 
     console.log("Database query result:", { user: user ? "found" : "not found", error })
 

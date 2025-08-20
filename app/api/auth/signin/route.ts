@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       .from("users")
       .select("*")
       .eq("phone_number", normalizedPhone)
-      .single()
+      .maybeSingle()
 
     console.log("Database query result:", { 
       user: user ? "found" : "not found", 
@@ -56,9 +56,6 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.log("Database error:", error)
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-      }
       return NextResponse.json({ error: "Database error" }, { status: 500 })
     }
 

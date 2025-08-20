@@ -3,10 +3,16 @@ import bcrypt from "bcryptjs"
 import { supabase } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
+  console.log("Sign in API route called")
+  
   try {
-    const { phone, password, userType } = await request.json()
+    const body = await request.json()
+    console.log("Request body:", { ...body, password: "[REDACTED]" })
+    
+    const { phone, password, userType } = body
     
     if (!phone || !password || !userType) {
+      console.log("Missing required fields:", { phone: !!phone, password: !!password, userType: !!userType })
       return NextResponse.json(
         { error: "Missing required fields" }, 
         { status: 400 }
@@ -15,7 +21,9 @@ export async function POST(request: NextRequest) {
 
     // Normalize phone number format
     const normalizedPhone = phone.startsWith('+91') ? phone : `+91${phone.replace(/\D/g, '')}`
+    console.log("Normalized phone:", normalizedPhone)
 
+    console.log("Querying user from database...")
     const { data: user, error } = await supabase
       .from("users")
       .select(`
@@ -39,16 +47,22 @@ export async function POST(request: NextRequest) {
       .eq("phone_number", normalizedPhone)
       .single()
 
+    console.log("Database query result:", { user: user ? "found" : "not found", error })
+
     if (error || !user) {
+      console.log("User not found or database error:", error)
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
+    console.log("Verifying password...")
     const isPasswordValid = await bcrypt.compare(password, user.password_hash)
+    console.log("Password valid:", isPasswordValid)
 
     if (!isPasswordValid) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
+    console.log("Checking user type:", { userType, dbUserType: user.user_type })
     if (user.user_type !== userType) {
       const correctDashboard = user.user_type === "member" ? "Member" : "Gym Owner"
       return NextResponse.json(
@@ -86,6 +100,7 @@ export async function POST(request: NextRequest) {
 
     const isDefaultPassword = password === "123456"
 
+    console.log("Sign in successful for user:", user.id)
     return NextResponse.json({
       success: true,
       user: userData,
@@ -93,6 +108,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Sign in error:", error)
-    return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "An unexpected error occurred",
+      details: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 })
   }
 }

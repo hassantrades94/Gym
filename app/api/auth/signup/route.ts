@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
       gymName,
     } = await request.json()
 
+    // Normalize phone number to include +91 prefix for consistency
+    const normalizedPhone = phone.startsWith('+91') ? phone : `+91${phone}`
+
     const dob = dateOfBirth ? new Date(dateOfBirth).toISOString().split("T")[0] : null
     // Normalize gender to match DB CHECK constraint: 'Male' | 'Female' | 'Others'
     const normalizedGender = gender
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
     const { data: existingUser, error: existingUserError } = await supabase
       .from("users")
       .select("id")
-      .eq("phone_number", phone)
+      .eq("phone_number", normalizedPhone)
       .single()
 
     if (existingUserError && existingUserError.code !== "PGRST116") {
@@ -116,7 +119,7 @@ export async function POST(request: NextRequest) {
     const { data: newUser, error: userError } = await supabase
       .from("users")
       .insert({
-        phone_number: phone,
+        phone_number: normalizedPhone,
         password_hash: hashedPassword,
         full_name: fullName,
         user_type: userType,

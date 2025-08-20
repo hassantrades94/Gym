@@ -1,10 +1,37 @@
 import { type NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@supabase/supabase-js"
+
+// Use server-side environment variables for API routes
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Missing Supabase environment variables for server-side operations')
+}
+
+const supabase = supabaseUrl && supabaseServiceKey 
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null
 
 export async function POST(request: NextRequest) {
   try {
+    if (!supabase) {
+      console.error('Supabase client not initialized - missing environment variables')
+      return NextResponse.json(
+        { error: "Server configuration error" }, 
+        { status: 500 }
+      )
+    }
+
     const { phone, password, userType } = await request.json()
+    
+    if (!phone || !password || !userType) {
+      return NextResponse.json(
+        { error: "Missing required fields" }, 
+        { status: 400 }
+      )
+    }
 
     const { data: user, error } = await supabase
       .from("users")

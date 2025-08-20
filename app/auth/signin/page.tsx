@@ -88,11 +88,20 @@ export default function SignInPage() {
       console.log("Response headers:", response.headers)
       
       const contentType = response.headers.get("content-type")
+      console.log("Content type:", contentType)
+      
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text()
         console.error("Non-JSON response:", text)
-        throw new Error("Server returned non-JSON response")
+        toast({
+          title: "Server Error",
+          description: "The server is not responding properly. Please try again.",
+          variant: "destructive",
+        })
+        setIsLoading(false)
+        return
       }
+      
       const data = await response.json()
       console.log("Response data:", data)
 

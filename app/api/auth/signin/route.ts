@@ -1,11 +1,29 @@
 import { type NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import { supabase } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error("Missing Supabase environment variables")
+}
+
+const supabase = createClient(supabaseUrl!, serviceRoleKey!)
 
 export async function POST(request: NextRequest) {
   console.log("Sign in API route called")
   
   try {
+    // Validate environment variables first
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("Missing Supabase environment variables")
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      )
+    }
+
     const body = await request.json()
     console.log("Request body:", { ...body, password: "[REDACTED]" })
     
@@ -26,31 +44,26 @@ export async function POST(request: NextRequest) {
     console.log("Querying user from database...")
     const { data: user, error } = await supabase
       .from("users")
-      .select(`
-        id,
-        phone_number,
-        password_hash,
-        full_name,
-        user_type,
-        memberships (
-          gym_id,
-          gyms (
-            id,
-            gym_name
-          )
-        ),
-        gyms (
-          id,
-          gym_name
-        )
-      `)
+      .select("*")
       .eq("phone_number", normalizedPhone)
-      .maybeSingle()
+      .single()
 
-    console.log("Database query result:", { user: user ? "found" : "not found", error })
+    console.log("Database query result:", { 
+      user: user ? "found" : "not found", 
+      error: error?.message || null,
+      userType: user?.user_type 
+    })
 
-    if (error || !user) {
-      console.log("User not found or database error:", error)
+    if (error) {
+      console.log("Database error:", error)
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      }
+      return NextResponse.json({ error: "Database error" }, { status: 500 })
+    }
+
+    if (!user) {
+      console.log("User not found")
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
@@ -74,19 +87,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get gym info separately to avoid complex joins
     let gymInfo = null
-    if (user.user_type === "member" && user.memberships?.[0]?.gyms) {
-      const membership = user.memberships?.[0]
-      const gymsRelation = membership?.gyms as any
-      const gymObj = Array.isArray(gymsRelation) ? gymsRelation[0] : gymsRelation
-      gymInfo = {
-        gym_id: gymObj?.id,
-        gym_name: gymObj?.gym_name,
+    
+    if (user.user_type === "member") {
+      const { data: membership } = await supabase
+        .from("memberships")
+        .select(`
+          gym_id,
+          gyms (
+            id,
+            gym_name
+          )
+        `)
+        .eq("user_id", user.id)
+        .single()
+      
+      if (membership?.gyms) {
+        const gym = Array.isArray(membership.gyms) ? membership.gyms[0] : membership.gyms
+        gymInfo = {
+          gym_id: gym.id,
+          gym_name: gym.gym_name,
+        }
       }
-    } else if (user.user_type === "gym_owner" && user.gyms?.[0]) {
-      gymInfo = {
-        gym_id: user.gyms[0].id,
-        gym_name: user.gyms[0].gym_name,
+    } else if (user.user_type === "gym_owner") {
+      const { data: gym } = await supabase
+        .from("gyms")
+        .select("id, gym_name")
+        .eq("owner_id", user.id)
+        .single()
+      
+      if (gym) {
+        gymInfo = {
+          gym_id: gym.id,
+          gym_name: gym.gym_name,
+        }
       }
     }
 

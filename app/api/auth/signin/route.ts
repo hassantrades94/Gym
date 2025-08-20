@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Normalize phone number format
-    const normalizedPhone = phone.startsWith('+91') ? phone : `+91${phone.replace(/\D/g, '')}`
+    const normalizedPhone = phone.startsWith('+91') ? phone : `+91${phone}`
     console.log("Normalized phone:", normalizedPhone)
 
     console.log("Querying user from database...")

@@ -77,7 +77,7 @@ export default function SignInPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          phone: formData.phone,
+          phone: formData.phone.replace(/\D/g, ''),
           password: formData.password,
           userType: userType === "owner" ? "gym_owner" : "member",
         }),

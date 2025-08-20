@@ -1,29 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import { createClient } from "@supabase/supabase-js"
-
-// Use server-side environment variables for API routes
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables for server-side operations')
-}
-
-const supabase = supabaseUrl && supabaseServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null
+import { supabase } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    if (!supabase) {
-      console.error('Supabase client not initialized - missing environment variables')
-      return NextResponse.json(
-        { error: "Server configuration error" }, 
-        { status: 500 }
-      )
-    }
-
     const { phone, password, userType } = await request.json()
     
     if (!phone || !password || !userType) {
@@ -32,6 +12,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Normalize phone number format
+    const normalizedPhone = phone.startsWith('+91') ? phone : `+91${phone.replace(/\D/g, '')}`
 
     const { data: user, error } = await supabase
       .from("users")
@@ -53,7 +36,7 @@ export async function POST(request: NextRequest) {
           gym_name
         )
       `)
-      .eq("phone_number", phone)
+      .eq("phone_number", normalizedPhone)
       .single()
 
     if (error || !user) {
